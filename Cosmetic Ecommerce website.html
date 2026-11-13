@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GlowCart — Cosmetics Store</title>
+  <style>
+    :root{
+      --bg:#0f172a;--panel:#111827;--muted:#1f2937;--text:#e5e7eb;--soft:#9ca3af;--brand:#ef5da8;
+    }
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0}
+    header{background:var(--panel);position:sticky;top:0;z-index:10;border-bottom:1px solid #253045}
+    .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;max-width:1200px;margin:0 auto;padding:10px}
+    .left{display:flex;gap:8px;align-items:center}
+    .right{display:flex;gap:8px;align-items:center}
+    .input,.select,.btn{padding:9px 12px;border-radius:8px;border:1px solid #303949;background:#1f2937;color:#fff}
+    .btn{cursor:pointer}
+    .btn.brand{background:var(--brand);border:none;color:#30041b;font-weight:700}
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;max-width:1200px;margin:18px auto;padding:0 10px}
+    .card{background:#101826;border:1px solid #253045;border-radius:12px;overflow:hidden}
+    .card img{width:100%;height:160px;object-fit:cover;display:block;background:#0d1320}
+    .card .meta{padding:10px}
+    .title{font-weight:700}
+    .muted{color:var(--soft);font-size:12px}
+    .price{font-weight:800;margin:6px 0}
+    .row{display:flex;gap:8px;align-items:center}
+    .space{flex:1}
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:20}
+    .dialog{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:30}
+    .dialog.show{display:flex}
+    .box{background:#101826;border:1px solid #253045;border-radius:12px;padding:16px;width:420px;max-width:calc(100% - 24px)}
+    .panel{position:fixed;left:0;right:0;top:56px;max-height:80vh;overflow:auto;background:#0f1624;border-top:1px solid #253045;padding:16px;display:none;z-index:25}
+    .order{border:1px solid #253045;border-radius:10px;padding:10px;margin:10px 0}
+    #stats{max-width:1200px;margin:8px auto 0;padding:0 10px;color:#9ca3af}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="toolbar">
+      <div class="left">
+        <input id="search" class="input" placeholder="Search name/brand/category…"/>
+        <select id="category" class="select"></select>
+      </div>
+      <div class="right">
+        <button id="openCart" class="btn brand">Cart (<span id="cartCount">0</span>)</button>
+        <button id="openOrders" class="btn">Orders</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="stats"></div>
+    <section id="products" class="cards"></section>
+  </main>
+
+  <div id="overlay" class="overlay"></div>
+
+  <!-- Checkout Dialog -->
+  <div id="checkoutDialog" class="dialog" role="dialog" aria-modal="true">
+    <div class="box">
+      <h3 style="margin:0 0 8px">Customer Details</h3>
+      <input id="custName" class="input" placeholder="Full Name" style="width:100%"/>
+      <input id="custMobile" class="input" placeholder="Mobile Number" style="width:100%;margin-top:8px"/>
+      <input id="custAddress" class="input" placeholder="Address" style="width:100%;margin-top:8px"/>
+      <select id="paymentMethod" class="select" style="width:100%;margin-top:8px">
+        <option value="UPI">UPI</option>
+        <option value="Wallet">Wallet</option>
+        <option value="COD">Cash on Delivery</option>
+      </select>
+      <div id="totalBill" style="margin:10px 0;font-weight:800"></div>
+      <div class="row">
+        <button class="btn" id="cancelCheckout">Cancel</button>
+        <span class="space"></span>
+        <button class="btn brand" id="placeOrderBtn">Place Order</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Orders Panel -->
+  <section id="ordersPanel" class="panel"></section>
+
+  <script>
+    /* ===========================
+       FIXED ONLINE IMAGE URL HELPER
+       Using placehold.co for guaranteed loading.
+       =========================== */
+    function fixedImg(label, i){
+      const txt = encodeURIComponent(label + ' #' + (i||'')); // unique alt text
+      return `https://placehold.co/400x300?text=${txt}`;
+    }
+
+    /* ===========================
+       70 COSMETICS PRODUCTS
+       =========================== */
+    const PRODUCTS = [
+      // Lipsticks (10)
+      { id: 1,  name: "Velvet Matte Lipstick - Ruby",        brand:"GlamWear",   category:"Lipsticks",  price: 799,  image:"images/lip1.jpeg" },
+      { id: 2,  name: "Satin Shine Lipstick - Coral",        brand:"GlowMuse",   category:"Lipsticks",  price: 699,  image:"images/lip2.jpeg" },
+      { id: 3,  name: "Longwear Liquid Lip - Wine",          brand:"Tint&Co",    category:"Lipsticks",  price: 899,  image:"images/lip3.jpeg" },
+      { id: 4,  name: "Creamy Lip Crayon - Nude",            brand:"Fleur",      category:"Lipsticks",  price: 649,  image:"images/lip4.jpeg" },
+      { id: 5,  name: "Matte Bullet Lipstick - Plum",        brand:"BelleNote",  category:"Lipsticks",  price: 749,  image:"images/lip5.jpeg" },
+      { id: 6,  name: "Liquid Matte - Rosewood",             brand:"Aura21",     category:"Lipsticks",  price: 899,  image:"images/lip6.jpeg" },
+      { id: 7,  name: "Hydra Gloss - Clear",                 brand:"Opaline",    category:"Lipsticks",  price: 599,  image:"images/lip7.jpeg" },
+      { id: 8,  name: "Velvet Tint - Mauve",                 brand:"Nectar",     category:"Lipsticks",  price: 699,  image:"images/lip8.jpeg" },
+      { id: 9,  name: "Ultra Pigment Lipstick - Brick",      brand:"MuseMatte",  category:"Lipsticks",  price: 849,  image:"images/lip9.jpeg" },
+      { id: 10, name: "Soft Matte Lip - Pink Latte",         brand:"LuxePetal",  category:"Lipsticks",  price: 799,  image:"images/lip10.jpeg" },
+
+      // Perfumes (10)
+      { id: 11, name: "Eau de Parfum - Amber Bloom",         brand:"Nocturne",   category:"Perfumes",   price: 2499, image:"images/per1.jpeg" },
+      { id: 12, name: "Eau de Toilette - Citrus Sky",        brand:"Verde",      category:"Perfumes",   price: 1799, image:"images/per2.jpeg" },
+      { id: 13, name: "Parfum - Noir Velvet",                brand:"Maison 8",   category:"Perfumes",   price: 3299, image:"images/per3.jpeg" },
+      { id: 14, name: "Body Mist - Rose Dew",                brand:"Petal&Co",   category:"Perfumes",   price:  699, image:"images/per4.jpeg" },
+      { id: 15, name: "Unisex Cologne - Sea Mineral",        brand:"Aether",     category:"Perfumes",   price: 2199, image:"images/per5.jpeg" },
+      { id: 16, name: "Eau Fraîche - Green Tea",             brand:"Zenleaf",    category:"Perfumes",   price: 1399, image:"images/per6.jpeg" },
+      { id: 17, name: "Roll-on Attar - Oud Spice",           brand:"Sahara",     category:"Perfumes",   price:  899, image:"images/per7.jpeg" },
+      { id: 18, name: "Eau de Parfum - Vanilla Ember",       brand:"AmberLane",  category:"Perfumes",   price: 2699, image:"images/per8.jpeg" },
+      { id: 19, name: "Travel Spray - Blue Bay",             brand:"Drift",      category:"Perfumes",   price:  599, image:"images/per9.jpeg" },
+      { id: 20, name: "Solid Perfume - Garden Fig",          brand:"Arbor",      category:"Perfumes",   price:  999, image:"images/per10.jpeg" },
+
+      // Skincare (10)
+      { id: 21, name: "Hydrating Face Wash",                  brand:"PureHabit",  category:"Skincare",   price: 349,  image:"images/s1.jpeg" },
+      { id: 22, name: "Vitamin C Serum 10%",                  brand:"C+ Bright",  category:"Skincare",   price: 899,  image:"images/s2.jpeg" },
+      { id: 23, name: "Oil-Free Moisturizer",                 brand:"CloudGel",   category:"Skcare",     price: 599,  image:"images/s3.jpeg" },
+      { id: 24, name: "SPF 50+ Sunscreen",                    brand:"RayGuard",   category:"Skincare",   price: 749,  image:"images/s4.jpeg" },
+      { id: 25, name: "AHA BHA Peeling Solution",             brand:"ClarityLab", category:"Skincare",   price: 799,  image:"images/s5.jpeg" },
+      { id: 26, name: "Niacinamide 5% Serum",                 brand:"BareForm",   category:"Skincare",   price: 699,  image:"images/s6.jpeg" },
+      { id: 27, name: "Hydra Sheet Masks (5)",                brand:"Bloomix",    category:"Skincare",   price: 399,  image:"images/s7.jpeg" },
+      { id: 28, name: "Night Repair Cream",                   brand:"LunaDerm",   category:"Skincare",   price: 899,  image:"images/s8.jpeg" },
+      { id: 29, name: "Micellar Cleansing Water",             brand:"AquaMelt",   category:"Skincare",   price: 349,  image:"images/s9.jpeg" },
+      { id: 30, name: "Lip Balm - Berry SPF15",               brand:"KissCare",   category:"Skincare",   price: 199,  image:"images/s10.jpeg" },
+
+      // Makeup Kits & Face (10)
+      { id: 31, name: "All-in-One Makeup Kit",               brand:"StudioPro",  category:"Makeup",     price: 1999, image:"images/m1.jpeg" },
+      { id: 32, name: "Foundation - Soft Beige",             brand:"ToneFit",    category:"Makeup",     price:  899, image:"images/m2.jpeg" },
+      { id: 33, name: "Concealer - Medium",                  brand:"Hide&Glow",  category:"Makeup",     price:  549, image:"images/m3.jpeg" },
+      { id: 34, name: "Compact Powder - 02",                 brand:"MatteMint",  category:"Makeup",     price:  499, image:"images/m4.jpeg" },
+      { id: 35, name: "Blush - Rose Flush",                  brand:"PetalPop",   category:"Makeup",     price:  549, image:"images/m5.jpeg" },
+      { id: 36, name: "Highlighter - Champagne",             brand:"Gleam",      category:"Makeup",     price:  649, image:"images/m6.jpeg" },
+      { id: 37, name: "Eyeshadow Palette - Nudes",           brand:"ShadeBar",   category:"Makeup",     price: 1099, image:"images/m7.jpeg" },
+      { id: 38, name: "Kajal & Liner Duo",                   brand:"InkFine",    category:"Makeup",     price:  399, image:"images/m8.jpeg" },
+      { id: 39, name: "Mascara - Volume Lift",               brand:"LashLift",   category:"Makeup",     price:  549, image:"images/m9.jpeg" },
+      { id: 40, name: "Setting Spray - Longstay",            brand:"MistLock",   category:"Makeup",     price:  599, image:"images/m10.jpeg" },
+
+       // Haircare (10)
+      { id: 51, name: "Shampoo - Anti Frizz",                brand:"SilkStrand", category:"Haircare",   price: 349,  image:"images/h1.jpeg" },
+      { id: 52, name: "Conditioner - Smooth Care",           brand:"Velvique",   category:"Haircare",   price: 349,  image:"images/h2.jpeg" },
+      { id: 53, name: "Hair Serum - Argan",                  brand:"GlowRoot",   category:"Haircare",   price: 499,  image:"images/h3.jpeg" },
+      { id: 54, name: "Heat Protect Spray",                  brand:"ThermoShield",category:"Haircare",  price: 449,  image:"images/h4.jpeg" },
+      { id: 55, name: "Dry Shampoo - Fresh",                 brand:"Breeze",     category:"Haircare",   price: 399,  image:"images/h1.jpeg" },
+      { id: 56, name: "Hair Mask - Keratin",                 brand:"RepairRx",   category:"Haircare",   price: 599,  image:"images/h5.jpeg" },
+      { id: 57, name: "Volumizing Mousse",                   brand:"LiftUp",     category:"Haircare",   price: 449,  image:"images/h2.jpeg" },
+      { id: 58, name: "Anti-Dandruff Lotion",                brand:"ClearCap",   category:"Haircare",   price: 349,  image:"images/h6.jpeg" },
+      { id: 59, name: "Hair Oil - Onion & Black Seed",       brand:"Herbaluxe",  category:"Haircare",   price: 299,  image:"images/h10.jpeg" },
+      { id: 60, name: "Hair Color - Dark Brown",             brand:"TintPro",    category:"Haircare",   price: 399,  image:"images/h9.jpeg" }
+      
+    ];
+
+    /* ===========================
+       STATE
+       =========================== */
+    const state = {
+      products: PRODUCTS,
+      filtered: PRODUCTS,
+      cart: [],
+      orders: [],
+      buyNowItem: null
+    };
+
+    const productsEl = document.getElementById('products');
+    const statsEl = document.getElementById('stats');
+    const searchEl = document.getElementById('search');
+    const categoryEl = document.getElementById('category');
+
+    function fmt(n){return '₹'+n.toLocaleString('en-IN');}
+
+    /* ===========================
+       RENDER PRODUCTS
+       =========================== */
+    function renderProducts(){
+      statsEl.textContent = `${state.filtered.length} products`;
+      productsEl.innerHTML = state.filtered.map(p=>`
+        <article class="card">
+          <img src="${p.image}" alt="${p.name}">
+          <div class="meta">
+            <div class="title">${p.name}</div>
+            <div class="muted">${p.category}${p.brand ? ' • '+p.brand : ''}</div>
+            <div class="row">
+              <div class="price">${fmt(p.price)}</div>
+              <span class="space"></span>
+              <button class="btn" onclick="addToCart(${p.id})">Add</button>
+              <button class="btn brand" onclick="buyNow(${p.id})">Buy Now</button>
+            </div>
+          </div>
+        </article>
+      `).join('');
+    }
+
+    function applyFilters(){
+      const q = (searchEl.value||'').toLowerCase();
+      const cat = categoryEl.value||'All';
+      state.filtered = state.products.filter(p =>
+        (cat==='All' || p.category===cat) &&
+        (!q || p.name.toLowerCase().includes(q) ||
+              (p.brand||'').toLowerCase().includes(q) ||
+              p.category.toLowerCase().includes(q))
+      );
+      renderProducts();
+    }
+
+    function initFilters(){
+      const cats = ['All', ...Array.from(new Set(PRODUCTS.map(p=>p.category)))];
+      categoryEl.innerHTML = cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+      categoryEl.value = 'All';
+      searchEl.addEventListener('input', applyFilters);
+      categoryEl.addEventListener('change', applyFilters);
+      applyFilters();
+    }
+
+    /* ===========================
+       CART / CHECKOUT
+       =========================== */
+    const cartCountEl = document.getElementById('cartCount');
+    const overlay = document.getElementById('overlay');
+    const checkoutDialog = document.getElementById('checkoutDialog');
+    const totalBillEl = document.getElementById('totalBill');
+
+    function cartCount(){return state.cart.reduce((s,x)=>s+x.qty,0)}
+    function cartTotal(items=state.cart){return items.reduce((s,x)=>s+x.price*x.qty,0)}
+
+    function addToCart(id){
+      const p = state.products.find(x=>x.id===id); if(!p) return;
+      const ex = state.cart.find(x=>x.id===id);
+      if(ex) ex.qty++; else state.cart.push({id:p.id,name:p.name,price:p.price,image:p.image,qty:1});
+      cartCountEl.textContent = cartCount();
+    }
+    window.addToCart = addToCart;
+
+    function buyNow(id){
+      const p = state.products.find(x=>x.id===id); if(!p) return;
+      state.buyNowItem = {id:p.id,name:p.name,price:p.price,image:p.image,qty:1};
+      openCheckout(true);
+    }
+    window.buyNow = buyNow;
+
+    function openCheckout(isBuyNow=false){
+      const items = isBuyNow ? [state.buyNowItem] : state.cart;
+      if(!items || items.length===0){ alert('Cart is empty!'); return; }
+      totalBillEl.textContent = 'Total: ' + fmt(cartTotal(items));
+      checkoutDialog.dataset.buyNow = isBuyNow ? 'true' : 'false';
+      overlay.style.display='block';
+      checkoutDialog.classList.add('show');
+    }
+    document.getElementById('openCart').onclick = ()=>openCheckout(false);
+    document.getElementById('cancelCheckout').onclick = ()=>{
+      overlay.style.display='none';
+      checkoutDialog.classList.remove('show');
+      checkoutDialog.dataset.buyNow = 'false';
+      state.buyNowItem = null;
+    };
+
+    document.getElementById('placeOrderBtn').onclick = ()=>{
+      const name = document.getElementById('custName').value.trim();
+      const mobile = document.getElementById('custMobile').value.trim();
+      const addr = document.getElementById('custAddress').value.trim();
+      const pay = document.getElementById('paymentMethod').value;
+
+      // Simple validations (you can enhance as needed)
+      const mobileOk = /^\d{10}$/.test(mobile);
+      if(!name || !addr || !mobileOk){
+        alert('Please enter name, address and a valid 10-digit mobile number.');
+        return;
+      }
+
+      const isBuyNow = checkoutDialog.dataset.buyNow === 'true';
+      const items = isBuyNow ? [state.buyNowItem] : state.cart;
+
+      const order = {
+        id: 'ORD'+(state.orders.length+1).toString().padStart(4,'0'),
+        customer: name,
+        mobile: mobile,
+        address: addr,
+        payment: pay,
+        items: JSON.parse(JSON.stringify(items)),
+        total: cartTotal(items),
+        createdAt: new Date().toLocaleString()
+      };
+
+      state.orders.unshift(order);
+      if(isBuyNow){ state.buyNowItem = null; }
+      else { state.cart = []; cartCountEl.textContent = '0'; }
+
+      overlay.style.display='none';
+      checkoutDialog.classList.remove('show');
+      renderOrders();
+      openOrdersPanel();
+
+      // reset form
+      document.getElementById('custName').value = '';
+      document.getElementById('custMobile').value = '';
+      document.getElementById('custAddress').value = '';
+      document.getElementById('paymentMethod').value = 'UPI';
+    };
+
+    /* ===========================
+       ORDERS PANEL
+       =========================== */
+    const ordersPanel = document.getElementById('ordersPanel');
+    function openOrdersPanel(){ ordersPanel.style.display='block'; }
+    function toggleOrders(){ ordersPanel.style.display = (ordersPanel.style.display==='block')?'none':'block'; if(ordersPanel.style.display==='block') renderOrders(); }
+    document.getElementById('openOrders').onclick = toggleOrders;
+
+    function renderOrders(){
+      if(state.orders.length===0){
+        ordersPanel.innerHTML = '<p class="muted">No Orders Yet</p>';
+        return;
+      }
+      ordersPanel.innerHTML = state.orders.map(o=>`
+        <div class="order">
+          <div class="row"><strong>${o.id}</strong><span class="space"></span><span class="muted">${o.createdAt}</span></div>
+          <div style="margin:6px 0">
+            <b>Customer:</b> ${o.customer} &nbsp; | &nbsp; 
+            <b>Mobile:</b> ${o.mobile} &nbsp; | &nbsp; 
+            <b>Payment:</b> ${o.payment}
+          </div>
+          <div class="muted">${o.address}</div>
+          <div style="margin-top:6px"><b>Total:</b> ${fmt(o.total)}</div>
+          <ul style="margin:8px 0 0 16px">
+            ${o.items.map(i=>`<li>${i.name} × ${i.qty} — ${fmt(i.price*i.qty)}</li>`).join('')}
+          </ul>
+        </div>
+      `).join('');
+    }
+
+    // Init
+    initFilters();
+  </script>
+</body>
+</html>
